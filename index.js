@@ -131,7 +131,9 @@ const checkStartTimes = async () => {
   sendMail();
 };
 
-setInterval(() => {
-  console.log("check!");
-  checkStartTimes();
-}, 1000 * 60);
+/* setInterval(() => {
+  
+}, 1000 * 60); */
+
+console.log("check!");
+checkStartTimes();
