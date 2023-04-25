@@ -77,7 +77,9 @@ const checkStartTimes = async () => {
     console.log("no time found in DB");
   }
 
-  const browser = await puppeteer.launch({ headless: false });
+  const browser = await puppeteer.launch({
+    /* headless: false */
+  });
   const page = await browser.newPage();
   await page.goto("https://mypages.vatternrundan.se");
   console.log("go to succeeded");
