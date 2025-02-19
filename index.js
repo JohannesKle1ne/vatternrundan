@@ -1,141 +1,100 @@
 const puppeteer = require("puppeteer");
-const { Sequelize, Model, DataTypes } = require("sequelize");
-const nodemailer = require("nodemailer");
 
-const subject = "Vätternrundan new start times!";
-const link = `<a href="https://mypages.vatternrundan.se">Vatternrundan.se</a>`;
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
-const sendMail = () => {
-  const transporter = nodemailer.createTransport({
-    host: "smtp.zoho.eu",
-    port: 465,
-    secure: true, //ssl
-    auth: {
-      user: "jojokl1ne@zohomail.eu",
-      pass: "Nn9Tgys.Cknh@UW",
-    },
-    tls: {
-      rejectUnauthorized: false,
-    },
+function clickWithDelay(button) {
+  return new Promise((resolve) => {
+    button.click();
+    setTimeout(resolve, 2000);
   });
+}
 
-  transporter.verify(function (error, success) {
-    if (error) {
-      console.log(error);
-    } else {
-      console.log("Server is ready to take our messages");
-    }
-  });
-
-  transporter.sendMail({
-    from: "jojokl1ne@zohomail.eu",
-    to: "johannes_kleine@gmx.de",
-    subject: subject,
-    html: link,
-  });
-};
-
-const sequelize = new Sequelize("initial_hug", "postgres", "postgres", {
-  host: "database-hug.csehfyfmn8dh.eu-north-1.rds.amazonaws.com",
-  port: 5432,
-  dialect: "postgres",
-  logging: false,
-  pool: {
-    max: 10,
-    min: 0,
-    idle: 10000,
-  },
-});
-
-const Vattern = sequelize.define(
-  "Vattern",
-  {
-    times: {
-      type: DataTypes.TEXT,
-      allowNull: false,
-    },
-  },
-  { freezeTableName: true }
-);
-
-const checkStartTimes = async () => {
-  try {
-    await sequelize.authenticate();
-    console.log("Connection has been established successfully.");
-  } catch (error) {
-    console.error("Unable to connect to the database:", error);
-  }
-  const vattern = await Vattern.findOne({
-    where: {
-      id: 1,
-    },
-  });
-  let times;
-  if (vattern) {
-    times = vattern.times;
-  } else {
-    console.log("no time found in DB");
-  }
+const checkSite = async () => {
+  console.log("Launch pupeteer..");
 
   const browser = await puppeteer.launch({
-    /* headless: false */
+    args: ["--no-sandbox"],
+    headless: "new",
   });
   const page = await browser.newPage();
-  await page.goto("https://mypages.vatternrundan.se");
-  console.log("go to succeeded");
-  await page.waitForSelector(
-    "#LoginWrapper_ucLogin_eicUserIdEMail_ctl00_txtUserIdEMail"
+  await page.goto(
+    "https://www.sport-conrad.com/ski-alpin/ski/freeride-freetouring-ski/?count=253&offset=0"
   );
-  console.log("wait done");
-  await page.type(
-    "#LoginWrapper_ucLogin_eicUserIdEMail_ctl00_txtUserIdEMail",
-    "393022"
-  );
-  await page.type(
-    "#LoginWrapper_ucLogin_eicPassword_ctl00_txtPassword",
-    "n3x64p"
-  );
-  console.log("typed");
-  await page.click("#LoginWrapper_ucLogin_btn");
+  console.log("Visiting page..");
+  await page.waitForSelector(".sc-product-list-tile__action--to-product", {
+    visible: true,
+  });
 
-  await page.waitForSelector(
-    "#Content_rptParticipationCurrent_lnkRaceCurrent_0"
-  );
-  await page.click("#Content_rptParticipationCurrent_lnkRaceCurrent_0");
+  console.log("Found to product button");
 
-  await page.waitForSelector(
-    "#Content_ucRegistrationEntered_ucEditButtons_lnkStartTimeChange"
-  );
-  await page.click(
-    "#Content_ucRegistrationEntered_ucEditButtons_lnkStartTimeChange"
-  );
+  for (let i = 0; i < 72; i++) {
+    await page.waitForSelector(
+      ".sc-product-list__wrapper > ul > ul.sc-product-list-tile-row:nth-child(2)",
+      {
+        visible: true,
+      }
+    );
+    console.log("found ul");
+    /*     const selector = `ul.sc-product-list__tiles > li:nth-child(${i}) button.sc-product-list-tile__action--to-product`;
+     */
+    const selector =
+      ".sc-product-list__wrapper > ul > ul.sc-product-list-tile-row:nth-child(2) > li:nth-child(2) button.sc-product-list-tile__action--to-product";
+    const element = await page.$(selector);
+    console.log("found li element", element);
 
-  await page.waitForSelector(
-    "#ctl00_Content_ucRegistrationEntered_ucStartTimeChange_eicInterval_ctl00_ddlInterval_Input"
-  );
-  await page.click(
-    "#ctl00_Content_ucRegistrationEntered_ucStartTimeChange_eicInterval_ctl00_ddlInterval_Input"
-  );
+    if (element == null) continue;
+    await Promise.all([
+      await page.$eval(selector, (element) => {
+        element.click();
+      }),
+      page.waitForNavigation(),
+    ]);
+    /*   await page.click(".sc-product-list-tile__action--to-product");
+     */
 
-  const searchValue = await page.$eval(
-    "#ctl00_Content_ucRegistrationEntered_ucStartTimeChange_eicInterval_ctl00_ddlInterval_DropDown ul",
-    (el) => el.innerHTML
-  );
+    console.log("look for page meta");
+    await page.waitForSelector(".sc-skiMeta");
+    console.log("found page meta");
 
-  console.log("end");
+    //  await delay(1000);
 
-  if (searchValue != times) {
-    console.log("New start times found!!");
-    vattern.times = searchValue;
-    await vattern.save();
+    const name = await page.evaluate(() => {
+      return document
+        .querySelector(".sc-product-buy-box__title")
+        .innerText.trim();
+    });
+    console.log(name);
+
+    const skiWidth = await page.evaluate(() => {
+      return document
+        .querySelector(".sc-skiMeta_attribute-silhouette > span")
+        .innerText.trim();
+    });
+    console.log(skiWidth);
+
+    await Promise.all([page.goBack(), page.waitForNavigation()]);
+    break;
   }
+
+  /*  const lines = innerText.split("\n");
+
+  const weekendDays = ["Freitag", "Samstag", "Sonntag"];
+
+  const weekendLines = lines.filter((l) =>
+    weekendDays.some((d) => l.includes(d))
+  );
+  const hasWeekend = weekendLines.length > 0;
+
+  console.log(hasWeekend);
+ */
+
   browser.close();
-  sendMail();
 };
 
-/* setInterval(() => {
-  
-}, 1000 * 60); */
+checkSite();
 
-console.log("check!");
-checkStartTimes();
+setInterval(() => {
+  checkSite();
+}, 1000 * 60 * 5);
