@@ -7,7 +7,6 @@ async function checkSite() {
   console.log("Launching Puppeteer...");
 
   const browser = await puppeteer.launch({
-    args: ["--no-sandbox"],
     headless: "new",
   });
   const page = await browser.newPage();
@@ -58,7 +57,7 @@ async function checkSite() {
         ),
         radius: await page.$eval(
           ".sc-skiMeta_attribute--radius .sc-skiMeta_attribute--value",
-          (el) => parseInt(el.innerText.replace(/\D/g, ""), 10)
+          (el) => parseFloat(el.innerText.replace(/[^\d.]/g, ""))
         ),
         sidecut: await page.$eval(
           ".sc-skiMeta_attribute--sidecut .sc-skiMeta_attribute--value",
@@ -83,6 +82,24 @@ async function checkSite() {
                   ?.innerText.replace(/\D/g, ""),
                 10
               );
+            }
+          }
+          return null;
+        }),
+        brand: await page.evaluate(() => {
+          const rows = document.querySelectorAll(
+            ".sc-product-detail-secondary__attributes--row"
+          );
+          for (let row of rows) {
+            if (
+              row
+                .querySelector(".sc-product-detail-secondary__attributes--key")
+                ?.innerText.trim()
+                .toLowerCase() === "marke:"
+            ) {
+              return row
+                .querySelector(".sc-product-detail-secondary__attributes--value span")
+                ?.innerText.trim();
             }
           }
           return null;
